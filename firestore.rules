@@ -1,0 +1,432 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Primitive Helpers
+    // =========================================================================
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Separate Admin check: requires trusted /admins/{uid} document, admin user role, or verified admin email
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        ) ||
+        (
+          request.auth.token.email is string &&
+          request.auth.token.email.size() <= 120 &&
+          (
+            request.auth.token.email == 'raheema62038@gmail.com' ||
+            request.auth.token.email == 'isaqureshinew@gmail.com'
+          ) &&
+          request.auth.token.email_verified == true
+        )
+      );
+    }
+
+    // =========================================================================
+    // Entity Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+
+    function isValidCustomerProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'authMethod', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'name', 'email', 'phone', 'role', 'authMethod', 'defaultAddress', 'defaultPinCode', 'gpsLat', 'gpsLng', 'gpsAccuracyMeters', 'gpsSavedAt', 'adminNoteHi', 'isDeleted', 'deletedAt', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == userId &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 80 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 120 &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 15)) &&
+        data.role is string && data.role.size() >= 5 && data.role.size() <= 10 && (data.role == 'customer' || data.role == 'admin') &&
+        data.authMethod is string && data.authMethod.size() >= 6 && data.authMethod.size() <= 20 &&
+        (data.authMethod == 'email_password' || data.authMethod == 'google' || data.authMethod == 'mobile_password' || data.authMethod == 'phone_otp') &&
+        (!('defaultAddress' in data) || (data.defaultAddress is string && data.defaultAddress.size() <= 300)) &&
+        (!('defaultPinCode' in data) || (data.defaultPinCode is string && data.defaultPinCode.size() <= 6 && (data.defaultPinCode.size() == 0 || data.defaultPinCode.matches('^[1-9][0-9]{5}$')))) &&
+        (!('gpsLat' in data) || ((data.gpsLat is int || data.gpsLat is float) && data.gpsLat >= -90 && data.gpsLat <= 90)) &&
+        (!('gpsLng' in data) || ((data.gpsLng is int || data.gpsLng is float) && data.gpsLng >= -180 && data.gpsLng <= 180)) &&
+        (!('gpsAccuracyMeters' in data) || ((data.gpsAccuracyMeters is int || data.gpsAccuracyMeters is float) && data.gpsAccuracyMeters >= 0 && data.gpsAccuracyMeters <= 1000000)) &&
+        (!('gpsSavedAt' in data) || (data.gpsSavedAt is timestamp)) &&
+        (!('adminNoteHi' in data) || (data.adminNoteHi is string && data.adminNoteHi.size() <= 300)) &&
+        (!('isDeleted' in data) || (data.isDeleted is bool)) &&
+        (!('deletedAt' in data) || (data.deletedAt is timestamp)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTeaProduct(data, productId) {
+      return data.keys().hasAll(['id', 'nameHi', 'nameEn', 'weightGrams', 'priceInr', 'inStock', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'nameHi', 'nameEn', 'companyName', 'categoryHi', 'descriptionHi', 'originHi', 'tastingNotesHi', 'offerTextHi', 'illustrationVariant', 'weightGrams', 'weightLabel', 'priceInr', 'stockCount', 'photoUrl', 'inStock', 'isPublished', 'createdAt', 'updatedAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id == productId &&
+        data.nameHi is string && data.nameHi.size() >= 1 && data.nameHi.size() <= 100 &&
+        data.nameEn is string && data.nameEn.size() >= 1 && data.nameEn.size() <= 100 &&
+        (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 120)) &&
+        (!('categoryHi' in data) || (data.categoryHi is string && data.categoryHi.size() <= 60)) &&
+        (!('descriptionHi' in data) || (data.descriptionHi is string && data.descriptionHi.size() <= 500)) &&
+        (!('originHi' in data) || (data.originHi is string && data.originHi.size() <= 80)) &&
+        (!('tastingNotesHi' in data) || (data.tastingNotesHi is string && data.tastingNotesHi.size() <= 200)) &&
+        (!('offerTextHi' in data) || (data.offerTextHi is string && data.offerTextHi.size() <= 120)) &&
+        (!('illustrationVariant' in data) || (data.illustrationVariant is string && data.illustrationVariant.size() <= 40)) &&
+        data.weightGrams is int && data.weightGrams >= 1 && data.weightGrams <= 50000 &&
+        (!('weightLabel' in data) || (data.weightLabel is string && data.weightLabel.size() <= 40)) &&
+        data.priceInr is int && data.priceInr >= 1 && data.priceInr <= 100000 &&
+        (!('stockCount' in data) || (data.stockCount is int && data.stockCount >= 0 && data.stockCount <= 100000)) &&
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 800000)) &&
+        data.inStock is bool &&
+        (!('isPublished' in data) || (data.isPublished is bool)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTeaOrder(data) {
+      return data.keys().hasAll(['customerId', 'customerName', 'customerEmail', 'itemsSummary', 'totalItemsCount', 'totalAmountInr', 'deliveryAddress', 'pinCode', 'paymentMethod', 'status', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['customerId', 'customerName', 'customerEmail', 'customerPhone', 'itemsSummary', 'totalItemsCount', 'totalAmountInr', 'deliveryAddress', 'pinCode', 'gpsLat', 'gpsLng', 'gpsAddress', 'paymentMethod', 'status', 'adminNoteHi', 'isDeleted', 'deletedAt', 'whatsappNotificationStatus', 'whatsappNotificationError', 'whatsappMessageId', 'whatsappNotifiedAt', 'customerWhatsappStatus', 'customerWhatsappError', 'customerWhatsappMessageId', 'customerWhatsappLastEvent', 'createdAt', 'updatedAt']) &&
+        data.customerId is string && data.customerId.size() >= 1 && data.customerId.size() <= 128 && data.customerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.customerName is string && data.customerName.size() >= 2 && data.customerName.size() <= 80 &&
+        data.customerEmail is string && data.customerEmail.size() >= 3 && data.customerEmail.size() <= 120 &&
+        (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 15)) &&
+        data.itemsSummary is string && data.itemsSummary.size() >= 3 && data.itemsSummary.size() <= 1000 &&
+        data.totalItemsCount is int && data.totalItemsCount >= 1 && data.totalItemsCount <= 50 &&
+        data.totalAmountInr is int && data.totalAmountInr >= 1 && data.totalAmountInr <= 100000 &&
+        data.deliveryAddress is string && data.deliveryAddress.size() >= 10 && data.deliveryAddress.size() <= 300 &&
+        data.pinCode is string && data.pinCode.size() == 6 && data.pinCode.matches('^[1-9][0-9]{5}$') &&
+        (!('gpsLat' in data) || ((data.gpsLat is int || data.gpsLat is float) && data.gpsLat >= -90 && data.gpsLat <= 90)) &&
+        (!('gpsLng' in data) || ((data.gpsLng is int || data.gpsLng is float) && data.gpsLng >= -180 && data.gpsLng <= 180)) &&
+        (!('gpsAddress' in data) || (data.gpsAddress is string && data.gpsAddress.size() <= 300)) &&
+        data.paymentMethod is string && data.paymentMethod.size() >= 3 && data.paymentMethod.size() <= 10 &&
+        (data.paymentMethod == 'COD' || data.paymentMethod == 'UPI') &&
+        data.status is string && data.status.size() >= 7 && data.status.size() <= 15 &&
+        (data.status == 'pending' || data.status == 'confirmed' || data.status == 'shipped' || data.status == 'delivered' || data.status == 'cancelled') &&
+        (!('adminNoteHi' in data) || (data.adminNoteHi is string && data.adminNoteHi.size() <= 300)) &&
+        (!('isDeleted' in data) || (data.isDeleted is bool)) &&
+        (!('deletedAt' in data) || (data.deletedAt is timestamp)) &&
+        (!('whatsappNotificationStatus' in data) || (data.whatsappNotificationStatus is string && (data.whatsappNotificationStatus == 'pending' || data.whatsappNotificationStatus == 'sending' || data.whatsappNotificationStatus == 'sent' || data.whatsappNotificationStatus == 'failed' || data.whatsappNotificationStatus == 'not_configured'))) &&
+        (!('whatsappNotificationError' in data) || (data.whatsappNotificationError is string && data.whatsappNotificationError.size() <= 500)) &&
+        (!('whatsappMessageId' in data) || (data.whatsappMessageId is string && data.whatsappMessageId.size() <= 150)) &&
+        (!('whatsappNotifiedAt' in data) || (data.whatsappNotifiedAt is timestamp)) &&
+        (!('customerWhatsappStatus' in data) || (data.customerWhatsappStatus is string && (data.customerWhatsappStatus == 'pending' || data.customerWhatsappStatus == 'sending' || data.customerWhatsappStatus == 'sent' || data.customerWhatsappStatus == 'failed' || data.customerWhatsappStatus == 'not_configured'))) &&
+        (!('customerWhatsappError' in data) || (data.customerWhatsappError is string && data.customerWhatsappError.size() <= 500)) &&
+        (!('customerWhatsappMessageId' in data) || (data.customerWhatsappMessageId is string && data.customerWhatsappMessageId.size() <= 150)) &&
+        (!('customerWhatsappLastEvent' in data) || (data.customerWhatsappLastEvent is string && data.customerWhatsappLastEvent.size() <= 60)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAppSettings(data, settingId) {
+      return data.keys().hasAll(['id', 'appNameHi', 'appNameEn', 'companyNameHi', 'companyNameEn', 'primaryColor', 'deliveryChargeInr', 'freeDeliveryMinInr', 'minOrderAmountInr', 'allowCod', 'allowUpi', 'storeOpen', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'id', 'appNameHi', 'appNameEn', 'companyName', 'companyNameHi', 'companyNameEn',
+          'taglineHi', 'taglineEn', 'logoUrl', 'bannerImageUrl', 'primaryColor', 'accentColor',
+          'contactAddress', 'companyAddressHi', 'companyAddressEn', 'contactPhone', 'contactEmail', 'whatsappNumber', 'contactWhatsapp',
+          'bannerTitleHi', 'bannerTitleEn', 'bannerSubtitleHi', 'bannerSubtitleEn',
+          'offerBannerHi', 'offerBannerEn', 'specialOfferBannerHi', 'specialOfferBannerEn', 'announcementHi', 'announcementEn',
+          'catalogTitleHi', 'catalogTitleEn', 'catalogHeadingHi', 'catalogHeadingEn',
+          'catalogSubtitleHi', 'catalogSubtitleEn', 'catalogSubheadingHi', 'catalogSubheadingEn',
+          'addToCartBtnHi', 'addToCartBtnEn', 'orderNowBtnHi', 'orderNowBtnEn', 'orderBtnHi', 'orderBtnEn',
+          'emptyCatalogMsgHi', 'emptyCatalogMsgEn', 'emptyCatalogTitleHi', 'emptyCatalogTitleEn', 'emptyCatalogSubtitleHi', 'emptyCatalogSubtitleEn',
+          'deliveryChargeInr', 'freeDeliveryMinInr', 'minOrderAmountInr',
+          'deliveryAreasHi', 'deliveryAreasEn',
+          'allowCod', 'allowUpi', 'upiId', 'storeOpen',
+          'storeClosedMsgHi', 'storeClosedMsgEn', 'storeClosedMessageHi', 'storeClosedMessageEn',
+          'helpTitleHi', 'helpTitleEn', 'helpContentHi', 'helpContentEn', 'helpMessageHi', 'helpMessageEn',
+          'supportHoursHi', 'supportHoursEn',
+          'orderSuccessMsgHi', 'orderSuccessMsgEn', 'orderSuccessMessageHi', 'orderSuccessMessageEn',
+          'footerTextHi', 'footerTextEn',
+          'customWeightsCsv', 'updatedBy',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id == settingId &&
+        data.appNameHi is string && data.appNameHi.size() <= 100 &&
+        data.appNameEn is string && data.appNameEn.size() <= 100 &&
+        (!('companyName' in data) || (data.companyName is string && data.companyName.size() <= 120)) &&
+        data.companyNameHi is string && data.companyNameHi.size() <= 120 &&
+        data.companyNameEn is string && data.companyNameEn.size() <= 120 &&
+        (!('taglineHi' in data) || (data.taglineHi is string && data.taglineHi.size() <= 200)) &&
+        (!('taglineEn' in data) || (data.taglineEn is string && data.taglineEn.size() <= 200)) &&
+        (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 400000)) &&
+        (!('bannerImageUrl' in data) || (data.bannerImageUrl is string && data.bannerImageUrl.size() <= 400000)) &&
+        data.primaryColor is string && data.primaryColor.size() >= 3 && data.primaryColor.size() <= 20 &&
+        (!('accentColor' in data) || (data.accentColor is string && data.accentColor.size() <= 20)) &&
+        (!('contactAddress' in data) || (data.contactAddress is string && data.contactAddress.size() <= 300)) &&
+        (!('companyAddressHi' in data) || (data.companyAddressHi is string && data.companyAddressHi.size() <= 300)) &&
+        (!('companyAddressEn' in data) || (data.companyAddressEn is string && data.companyAddressEn.size() <= 300)) &&
+        (!('contactPhone' in data) || (data.contactPhone is string && data.contactPhone.size() <= 30)) &&
+        (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 120)) &&
+        (!('whatsappNumber' in data) || (data.whatsappNumber is string && data.whatsappNumber.size() <= 30)) &&
+        (!('contactWhatsapp' in data) || (data.contactWhatsapp is string && data.contactWhatsapp.size() <= 30)) &&
+        (!('bannerTitleHi' in data) || (data.bannerTitleHi is string && data.bannerTitleHi.size() <= 200)) &&
+        (!('bannerTitleEn' in data) || (data.bannerTitleEn is string && data.bannerTitleEn.size() <= 200)) &&
+        (!('bannerSubtitleHi' in data) || (data.bannerSubtitleHi is string && data.bannerSubtitleHi.size() <= 400)) &&
+        (!('bannerSubtitleEn' in data) || (data.bannerSubtitleEn is string && data.bannerSubtitleEn.size() <= 400)) &&
+        (!('offerBannerHi' in data) || (data.offerBannerHi is string && data.offerBannerHi.size() <= 300)) &&
+        (!('offerBannerEn' in data) || (data.offerBannerEn is string && data.offerBannerEn.size() <= 300)) &&
+        (!('specialOfferBannerHi' in data) || (data.specialOfferBannerHi is string && data.specialOfferBannerHi.size() <= 300)) &&
+        (!('specialOfferBannerEn' in data) || (data.specialOfferBannerEn is string && data.specialOfferBannerEn.size() <= 300)) &&
+        (!('announcementHi' in data) || (data.announcementHi is string && data.announcementHi.size() <= 300)) &&
+        (!('announcementEn' in data) || (data.announcementEn is string && data.announcementEn.size() <= 300)) &&
+        (!('catalogTitleHi' in data) || (data.catalogTitleHi is string && data.catalogTitleHi.size() <= 150)) &&
+        (!('catalogTitleEn' in data) || (data.catalogTitleEn is string && data.catalogTitleEn.size() <= 150)) &&
+        (!('catalogHeadingHi' in data) || (data.catalogHeadingHi is string && data.catalogHeadingHi.size() <= 150)) &&
+        (!('catalogHeadingEn' in data) || (data.catalogHeadingEn is string && data.catalogHeadingEn.size() <= 150)) &&
+        (!('catalogSubtitleHi' in data) || (data.catalogSubtitleHi is string && data.catalogSubtitleHi.size() <= 300)) &&
+        (!('catalogSubtitleEn' in data) || (data.catalogSubtitleEn is string && data.catalogSubtitleEn.size() <= 300)) &&
+        (!('catalogSubheadingHi' in data) || (data.catalogSubheadingHi is string && data.catalogSubheadingHi.size() <= 300)) &&
+        (!('catalogSubheadingEn' in data) || (data.catalogSubheadingEn is string && data.catalogSubheadingEn.size() <= 300)) &&
+        (!('addToCartBtnHi' in data) || (data.addToCartBtnHi is string && data.addToCartBtnHi.size() <= 60)) &&
+        (!('addToCartBtnEn' in data) || (data.addToCartBtnEn is string && data.addToCartBtnEn.size() <= 60)) &&
+        (!('orderNowBtnHi' in data) || (data.orderNowBtnHi is string && data.orderNowBtnHi.size() <= 60)) &&
+        (!('orderNowBtnEn' in data) || (data.orderNowBtnEn is string && data.orderNowBtnEn.size() <= 60)) &&
+        (!('orderBtnHi' in data) || (data.orderBtnHi is string && data.orderBtnHi.size() <= 60)) &&
+        (!('orderBtnEn' in data) || (data.orderBtnEn is string && data.orderBtnEn.size() <= 60)) &&
+        (!('emptyCatalogMsgHi' in data) || (data.emptyCatalogMsgHi is string && data.emptyCatalogMsgHi.size() <= 300)) &&
+        (!('emptyCatalogMsgEn' in data) || (data.emptyCatalogMsgEn is string && data.emptyCatalogMsgEn.size() <= 300)) &&
+        (!('emptyCatalogTitleHi' in data) || (data.emptyCatalogTitleHi is string && data.emptyCatalogTitleHi.size() <= 300)) &&
+        (!('emptyCatalogTitleEn' in data) || (data.emptyCatalogTitleEn is string && data.emptyCatalogTitleEn.size() <= 300)) &&
+        (!('emptyCatalogSubtitleHi' in data) || (data.emptyCatalogSubtitleHi is string && data.emptyCatalogSubtitleHi.size() <= 400)) &&
+        (!('emptyCatalogSubtitleEn' in data) || (data.emptyCatalogSubtitleEn is string && data.emptyCatalogSubtitleEn.size() <= 400)) &&
+        data.deliveryChargeInr is int && data.deliveryChargeInr >= 0 && data.deliveryChargeInr <= 10000 &&
+        data.freeDeliveryMinInr is int && data.freeDeliveryMinInr >= 0 && data.freeDeliveryMinInr <= 100000 &&
+        data.minOrderAmountInr is int && data.minOrderAmountInr >= 0 && data.minOrderAmountInr <= 100000 &&
+        (!('deliveryAreasHi' in data) || (data.deliveryAreasHi is string && data.deliveryAreasHi.size() <= 400)) &&
+        (!('deliveryAreasEn' in data) || (data.deliveryAreasEn is string && data.deliveryAreasEn.size() <= 400)) &&
+        data.allowCod is bool &&
+        data.allowUpi is bool &&
+        (!('upiId' in data) || (data.upiId is string && data.upiId.size() <= 100)) &&
+        data.storeOpen is bool &&
+        (!('storeClosedMsgHi' in data) || (data.storeClosedMsgHi is string && data.storeClosedMsgHi.size() <= 300)) &&
+        (!('storeClosedMsgEn' in data) || (data.storeClosedMsgEn is string && data.storeClosedMsgEn.size() <= 300)) &&
+        (!('storeClosedMessageHi' in data) || (data.storeClosedMessageHi is string && data.storeClosedMessageHi.size() <= 300)) &&
+        (!('storeClosedMessageEn' in data) || (data.storeClosedMessageEn is string && data.storeClosedMessageEn.size() <= 300)) &&
+        (!('helpTitleHi' in data) || (data.helpTitleHi is string && data.helpTitleHi.size() <= 150)) &&
+        (!('helpTitleEn' in data) || (data.helpTitleEn is string && data.helpTitleEn.size() <= 150)) &&
+        (!('helpContentHi' in data) || (data.helpContentHi is string && data.helpContentHi.size() <= 1000)) &&
+        (!('helpContentEn' in data) || (data.helpContentEn is string && data.helpContentEn.size() <= 1000)) &&
+        (!('helpMessageHi' in data) || (data.helpMessageHi is string && data.helpMessageHi.size() <= 1000)) &&
+        (!('helpMessageEn' in data) || (data.helpMessageEn is string && data.helpMessageEn.size() <= 1000)) &&
+        (!('supportHoursHi' in data) || (data.supportHoursHi is string && data.supportHoursHi.size() <= 150)) &&
+        (!('supportHoursEn' in data) || (data.supportHoursEn is string && data.supportHoursEn.size() <= 150)) &&
+        (!('orderSuccessMsgHi' in data) || (data.orderSuccessMsgHi is string && data.orderSuccessMsgHi.size() <= 300)) &&
+        (!('orderSuccessMsgEn' in data) || (data.orderSuccessMsgEn is string && data.orderSuccessMsgEn.size() <= 300)) &&
+        (!('orderSuccessMessageHi' in data) || (data.orderSuccessMessageHi is string && data.orderSuccessMessageHi.size() <= 300)) &&
+        (!('orderSuccessMessageEn' in data) || (data.orderSuccessMessageEn is string && data.orderSuccessMessageEn.size() <= 300)) &&
+        (!('footerTextHi' in data) || (data.footerTextHi is string && data.footerTextHi.size() <= 200)) &&
+        (!('footerTextEn' in data) || (data.footerTextEn is string && data.footerTextEn.size() <= 200)) &&
+        (!('customWeightsCsv' in data) || (data.customWeightsCsv is string && data.customWeightsCsv.size() <= 100)) &&
+        (!('updatedBy' in data) || (data.updatedBy is string && data.updatedBy.size() <= 128)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data, adminId) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 && data.uid == adminId &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 120 &&
+        (data.email == 'raheema62038@gmail.com' || data.email == 'isaqureshinew@gmail.com') &&
+        data.createdAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    // 1. Connection health check path
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, create, update, delete: if false;
+    }
+
+    // 2. Customer Profiles (/users/{userId}) - Strict PII isolation; Admin can view & update
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(userId) &&
+        request.auth.uid == userId &&
+        isValidCustomerProfile(incoming(), userId) &&
+        !('adminNoteHi' in incoming()) &&
+        !('isDeleted' in incoming()) &&
+        !('deletedAt' in incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (incoming().role == 'customer' || isAdmin());
+
+      allow update: if isSignedIn() &&
+        isValidId(userId) &&
+        isValidCustomerProfile(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().authMethod == existing().authMethod &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          (
+            request.auth.uid == userId &&
+            incoming().role == existing().role &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'defaultAddress', 'defaultPinCode', 'gpsLat', 'gpsLng', 'gpsAccuracyMeters', 'gpsSavedAt', 'updatedAt'])
+          ) ||
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['name', 'email', 'phone', 'role', 'defaultAddress', 'defaultPinCode', 'gpsLat', 'gpsLng', 'gpsAccuracyMeters', 'gpsSavedAt', 'adminNoteHi', 'isDeleted', 'deletedAt', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(userId) && isAdmin();
+    }
+
+    // 3. Tea Product Catalogue (/products/{productId})
+    // Customers can read catalogue products; ONLY Admin can create, update, or delete products.
+    match /products/{productId} {
+      allow get: if isSignedIn() && isValidId(productId) && (resource.data.inStock == true || resource.data.inStock == false || isAdmin());
+      allow list: if isSignedIn() && (resource.data.inStock == true || resource.data.inStock == false || isAdmin());
+
+      allow create: if isSignedIn() &&
+        isValidId(productId) &&
+        isValidTeaProduct(incoming(), productId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isSignedIn() &&
+        isValidId(productId) &&
+        isValidTeaProduct(incoming(), productId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['nameHi', 'nameEn', 'companyName', 'categoryHi', 'descriptionHi', 'originHi', 'tastingNotesHi', 'offerTextHi', 'illustrationVariant', 'weightGrams', 'weightLabel', 'priceInr', 'stockCount', 'photoUrl', 'inStock', 'isPublished', 'updatedAt']);
+
+      allow delete: if isSignedIn() && isValidId(productId) && isAdmin();
+    }
+
+    // 4. Customer Tea Orders (/orders/{orderId})
+    match /orders/{orderId} {
+      // Customers can read ONLY their own orders; Admins have separate read access
+      allow get: if isSignedIn() && isValidId(orderId) && (resource.data.customerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.customerId == request.auth.uid || isAdmin());
+
+      // Customers can create orders for themselves only if their profile exists
+      allow create: if isSignedIn() &&
+        isValidId(orderId) &&
+        isValidTeaOrder(incoming()) &&
+        !('adminNoteHi' in incoming()) &&
+        !('isDeleted' in incoming()) &&
+        !('deletedAt' in incoming()) &&
+        incoming().customerId == request.auth.uid &&
+        incoming().status == 'pending' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      // Action-based update with terminal state locking
+      allow update: if isSignedIn() &&
+        isValidId(orderId) &&
+        isValidTeaOrder(incoming()) &&
+        incoming().customerId == existing().customerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Customer cancels their own pending order
+          (
+            request.auth.uid == existing().customerId &&
+            existing().status == 'pending' &&
+            incoming().status == 'cancelled' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          ) ||
+          // Action 1b: Customer records server-side WhatsApp order notification status on their own order
+          (
+            request.auth.uid == existing().customerId &&
+            incoming().status == existing().status &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['whatsappNotificationStatus', 'whatsappNotificationError', 'whatsappMessageId', 'whatsappNotifiedAt', 'customerWhatsappStatus', 'customerWhatsappError', 'customerWhatsappMessageId', 'customerWhatsappLastEvent', 'updatedAt'])
+          ) ||
+          // Action 2: Admin updates order status, adminNoteHi, delivery info, WhatsApp notification status, or backup/recovery state
+          (
+            isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminNoteHi', 'deliveryAddress', 'pinCode', 'isDeleted', 'deletedAt', 'whatsappNotificationStatus', 'whatsappNotificationError', 'whatsappMessageId', 'whatsappNotifiedAt', 'customerWhatsappStatus', 'customerWhatsappError', 'customerWhatsappMessageId', 'customerWhatsappLastEvent', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isSignedIn() && isValidId(orderId) && isAdmin();
+    }
+
+    // 5. Global App Settings (/settings/{settingId}) - Publicly readable for brand/config; ONLY Admin can create or update
+    match /settings/{settingId} {
+      allow get: if isValidId(settingId);
+      allow list: if isSignedIn() && isAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(settingId) &&
+        isValidAppSettings(incoming(), settingId) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+
+      allow update: if isSignedIn() &&
+        isValidId(settingId) &&
+        isValidAppSettings(incoming(), settingId) &&
+        incoming().id == existing().id &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'id', 'appNameHi', 'appNameEn', 'companyName', 'companyNameHi', 'companyNameEn',
+          'taglineHi', 'taglineEn', 'logoUrl', 'bannerImageUrl', 'primaryColor', 'accentColor',
+          'contactAddress', 'companyAddressHi', 'companyAddressEn', 'contactPhone', 'contactEmail', 'whatsappNumber', 'contactWhatsapp',
+          'bannerTitleHi', 'bannerTitleEn', 'bannerSubtitleHi', 'bannerSubtitleEn',
+          'offerBannerHi', 'offerBannerEn', 'specialOfferBannerHi', 'specialOfferBannerEn', 'announcementHi', 'announcementEn',
+          'catalogTitleHi', 'catalogTitleEn', 'catalogHeadingHi', 'catalogHeadingEn',
+          'catalogSubtitleHi', 'catalogSubtitleEn', 'catalogSubheadingHi', 'catalogSubheadingEn',
+          'addToCartBtnHi', 'addToCartBtnEn', 'orderNowBtnHi', 'orderNowBtnEn', 'orderBtnHi', 'orderBtnEn',
+          'emptyCatalogMsgHi', 'emptyCatalogMsgEn', 'emptyCatalogTitleHi', 'emptyCatalogTitleEn', 'emptyCatalogSubtitleHi', 'emptyCatalogSubtitleEn',
+          'deliveryChargeInr', 'freeDeliveryMinInr', 'minOrderAmountInr',
+          'deliveryAreasHi', 'deliveryAreasEn',
+          'allowCod', 'allowUpi', 'upiId', 'storeOpen',
+          'storeClosedMsgHi', 'storeClosedMsgEn', 'storeClosedMessageHi', 'storeClosedMessageEn',
+          'helpTitleHi', 'helpTitleEn', 'helpContentHi', 'helpContentEn', 'helpMessageHi', 'helpMessageEn',
+          'supportHoursHi', 'supportHoursEn',
+          'orderSuccessMsgHi', 'orderSuccessMsgEn', 'orderSuccessMessageHi', 'orderSuccessMessageEn',
+          'footerTextHi', 'footerTextEn',
+          'customWeightsCsv', 'updatedBy',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // 6. Separate Admin Registry (/admins/{adminId})
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && (request.auth.uid == adminId || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
+
+      allow create: if isSignedIn() &&
+        isValidId(adminId) &&
+        request.auth.uid == adminId &&
+        isValidAdminRecord(incoming(), adminId) &&
+        incoming().createdAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
+
+      allow update, delete: if false;
+    }
+  }
+}

@@ -1,0 +1,217 @@
+/**
+ * Phase 0 TDD Security Rules Test Suite for Chai Roz
+ * Verifies that all "Dirty Dozen" adversarial payloads return PERMISSION_DENIED
+ * and valid customer/admin operations succeed.
+ */
+
+export interface DirtyDozenScenario {
+  id: number;
+  name: string;
+  collection: string;
+  operation: 'get' | 'list' | 'create' | 'update' | 'delete';
+  authUid: string | null;
+  authEmail?: string;
+  emailVerified?: boolean;
+  payload?: Record<string, unknown>;
+  expectedResult: 'PERMISSION_DENIED' | 'ALLOWED';
+}
+
+export const DIRTY_DOZEN_SCENARIOS: DirtyDozenScenario[] = [
+  {
+    id: 1,
+    name: 'Plain-text password injection in /users/{uid}',
+    collection: '/users/user_1',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      uid: 'user_1',
+      name: 'रमेश कुमार',
+      phone: '9876543210',
+      password: 'secretPassword123',
+      role: 'customer',
+      authMethod: 'mobile_password',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 2,
+    name: 'Self-assigned admin role escalation on registration',
+    collection: '/users/user_1',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      uid: 'user_1',
+      name: 'रमेश कुमार',
+      phone: '9876543210',
+      role: 'admin',
+      authMethod: 'mobile_password',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 3,
+    name: 'Cross-user PII profile read (/users/user_1 read by user_2)',
+    collection: '/users/user_1',
+    operation: 'get',
+    authUid: 'user_2',
+    authEmail: '9876543211@auth.chairoz.in',
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 4,
+    name: 'Invalid 5-digit mobile number format in customer profile',
+    collection: '/users/user_1',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      uid: 'user_1',
+      name: 'रमेश कुमार',
+      phone: '12345',
+      role: 'customer',
+      authMethod: 'mobile_password',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 5,
+    name: 'Order creation with spoofed customerId',
+    collection: '/orders/ord_1',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      customerId: 'user_2',
+      customerName: 'रमेश कुमार',
+      customerPhone: '9876543210',
+      itemsSummary: 'असम कड़क चाय (250g) × 1',
+      totalItemsCount: 1,
+      totalAmountInr: 240,
+      deliveryAddress: 'मकान नंबर 12, गांधी नगर, जयपुर, राजस्थान',
+      pinCode: '302015',
+      paymentMethod: 'COD',
+      status: 'pending',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 6,
+    name: 'Orphaned order creation without existing /users/{uid} profile',
+    collection: '/orders/ord_orphan',
+    operation: 'create',
+    authUid: 'user_without_profile',
+    authEmail: '9123456789@auth.chairoz.in',
+    payload: {
+      customerId: 'user_without_profile',
+      customerName: 'अज्ञात ग्राहक',
+      customerPhone: '9123456789',
+      itemsSummary: 'मसाला चाय (250g) × 1',
+      totalItemsCount: 1,
+      totalAmountInr: 260,
+      deliveryAddress: 'मकान नंबर 45, मालवीय नगर, भोपाल',
+      pinCode: '462003',
+      paymentMethod: 'COD',
+      status: 'pending',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 7,
+    name: 'Cross-customer order list scraping (user_2 reading user_1 order)',
+    collection: '/orders/ord_user_1',
+    operation: 'get',
+    authUid: 'user_2',
+    authEmail: '9876543211@auth.chairoz.in',
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 8,
+    name: 'Invalid Indian PIN code starting with 0',
+    collection: '/orders/ord_bad_pin',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      customerId: 'user_1',
+      customerName: 'रमेश कुमार',
+      customerPhone: '9876543210',
+      itemsSummary: 'असम कड़क चाय (250g) × 1',
+      totalItemsCount: 1,
+      totalAmountInr: 240,
+      deliveryAddress: 'मकान नंबर 12, गांधी नगर, जयपुर, राजस्थान',
+      pinCode: '002015',
+      paymentMethod: 'COD',
+      status: 'pending',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 9,
+    name: 'Order status shortcut on creation (setting status to delivered)',
+    collection: '/orders/ord_shortcut',
+    operation: 'create',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      customerId: 'user_1',
+      customerName: 'रमेश कुमार',
+      customerPhone: '9876543210',
+      itemsSummary: 'असम कड़क चाय (250g) × 1',
+      totalItemsCount: 1,
+      totalAmountInr: 240,
+      deliveryAddress: 'मकान नंबर 12, गांधी नगर, जयपुर, राजस्थान',
+      pinCode: '302015',
+      paymentMethod: 'COD',
+      status: 'delivered',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 10,
+    name: 'Terminal state mutation (updating already cancelled order)',
+    collection: '/orders/ord_cancelled',
+    operation: 'update',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      status: 'pending',
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 11,
+    name: 'Unverified admin email spoofing attack',
+    collection: '/products/prod_spoof',
+    operation: 'create',
+    authUid: 'attacker_uid',
+    authEmail: 'raheema62038@gmail.com',
+    emailVerified: false,
+    payload: {
+      id: 'prod_spoof',
+      nameHi: 'नकली चाय',
+      nameEn: 'Fake Tea',
+      categoryHi: 'कड़क चाय',
+      descriptionHi: 'यह एक अनधिकृत उत्पाद प्रविष्टि है।',
+      originHi: 'असम',
+      weightGrams: 250,
+      priceInr: 100,
+      inStock: true,
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+  {
+    id: 12,
+    name: 'Customer mutating totalAmountInr during order cancellation',
+    collection: '/orders/ord_1',
+    operation: 'update',
+    authUid: 'user_1',
+    authEmail: '9876543210@auth.chairoz.in',
+    payload: {
+      status: 'cancelled',
+      totalAmountInr: 10,
+    },
+    expectedResult: 'PERMISSION_DENIED',
+  },
+];

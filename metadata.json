@@ -1,0 +1,6 @@
+{
+  "name": "Chai Roz — चाय रोज़",
+  "description": "सुरक्षित ग्राहक लॉगिन, ताज़ा भारतीय चाय कैटलॉग और होम डिलीवरी ऑर्डर पोर्टल (Firebase Auth & Firestore के साथ)।",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

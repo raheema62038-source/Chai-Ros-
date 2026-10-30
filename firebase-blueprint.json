@@ -1,0 +1,487 @@
+{
+  "entities": {
+    "CustomerProfile": {
+      "title": "CustomerProfile",
+      "description": "Stores authenticated customer identity, Hindi/English full name, email address, and role. Never stores passwords.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID matching the document ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Customer full name in Hindi or English",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "email": {
+          "type": "string",
+          "description": "Customer login email address",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "phone": {
+          "type": "string",
+          "description": "Optional contact number",
+          "minLength": 0,
+          "maxLength": 15
+        },
+        "role": {
+          "type": "string",
+          "description": "Access control role; customers can only self-register as customer",
+          "enum": ["customer", "admin"],
+          "minLength": 5,
+          "maxLength": 10
+        },
+        "authMethod": {
+          "type": "string",
+          "description": "Supported Firebase Authentication method used",
+          "enum": ["email_password", "google", "mobile_password", "phone_otp"],
+          "minLength": 6,
+          "maxLength": 20
+        },
+        "defaultAddress": {
+          "type": "string",
+          "description": "Saved default delivery address",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "defaultPinCode": {
+          "type": "string",
+          "description": "Saved 6-digit Indian PIN code",
+          "minLength": 0,
+          "maxLength": 6
+        },
+        "gpsLat": {
+          "type": "number",
+          "description": "Saved GPS latitude coordinate (-90 to 90)"
+        },
+        "gpsLng": {
+          "type": "number",
+          "description": "Saved GPS longitude coordinate (-180 to 180)"
+        },
+        "gpsAccuracyMeters": {
+          "type": "number",
+          "description": "GPS accuracy in meters when permanent address was captured"
+        },
+        "gpsSavedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when GPS address was saved"
+        },
+        "adminNoteHi": {
+          "type": "string",
+          "description": "Live update or note from Admin visible to the customer",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Whether the customer profile is soft-deleted into the Admin Backup/Recovery bin"
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the customer profile was moved to backup"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of account creation"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of last profile update"
+        }
+      },
+      "required": ["uid", "name", "email", "role", "authMethod", "createdAt", "updatedAt"]
+    },
+    "TeaProduct": {
+      "title": "TeaProduct",
+      "description": "Admin-managed tea product in the catalogue",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Product identifier",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "nameHi": {
+          "type": "string",
+          "description": "Product name in Hindi",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "nameEn": {
+          "type": "string",
+          "description": "Product name in English",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Product company name entered by Admin",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "categoryHi": {
+          "type": "string",
+          "description": "Category label",
+          "minLength": 0,
+          "maxLength": 60
+        },
+        "descriptionHi": {
+          "type": "string",
+          "description": "Product description",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "originHi": {
+          "type": "string",
+          "description": "Origin label",
+          "minLength": 0,
+          "maxLength": 80
+        },
+        "tastingNotesHi": {
+          "type": "string",
+          "description": "Optional tasting notes",
+          "minLength": 0,
+          "maxLength": 200
+        },
+        "offerTextHi": {
+          "type": "string",
+          "description": "Optional offer badge or discount text controlled by Admin",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "illustrationVariant": {
+          "type": "string",
+          "description": "Optional illustration preset key",
+          "minLength": 0,
+          "maxLength": 40
+        },
+        "weightGrams": {
+          "type": "number",
+          "description": "Pack weight in grams"
+        },
+        "weightLabel": {
+          "type": "string",
+          "description": "Formatted weight label in Grams or Kg (e.g. 250g or 1 Kg)",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "priceInr": {
+          "type": "number",
+          "description": "Pack price in Indian Rupees (INR)"
+        },
+        "stockCount": {
+          "type": "number",
+          "description": "Available pack stock quantity"
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Uploaded product photo data URL or image URL",
+          "minLength": 0,
+          "maxLength": 800000
+        },
+        "inStock": {
+          "type": "boolean",
+          "description": "Whether the product is in stock"
+        },
+        "isPublished": {
+          "type": "boolean",
+          "description": "Whether the product is published and visible in the customer catalogue"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp"
+        }
+      },
+      "required": ["id", "nameHi", "nameEn", "weightGrams", "priceInr", "inStock", "createdAt", "updatedAt"]
+    },
+    "TeaOrder": {
+      "title": "TeaOrder",
+      "description": "Customer tea order with delivery address, 6-digit PIN code, and order status",
+      "type": "object",
+      "properties": {
+        "customerId": {
+          "type": "string",
+          "description": "Firebase UID of the customer who placed the order",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "customerName": {
+          "type": "string",
+          "description": "Customer full name for delivery",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "customerEmail": {
+          "type": "string",
+          "description": "Customer email address for order updates",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "customerPhone": {
+          "type": "string",
+          "description": "Optional customer phone number",
+          "minLength": 0,
+          "maxLength": 15
+        },
+        "itemsSummary": {
+          "type": "string",
+          "description": "Human-readable summary of ordered tea packs and quantities",
+          "minLength": 3,
+          "maxLength": 1000
+        },
+        "totalItemsCount": {
+          "type": "number",
+          "description": "Total number of tea packs in the order (1 to 50)"
+        },
+        "totalAmountInr": {
+          "type": "number",
+          "description": "Total payable amount in INR including delivery"
+        },
+        "deliveryAddress": {
+          "type": "string",
+          "description": "Full street/house/landmark delivery address",
+          "minLength": 10,
+          "maxLength": 300
+        },
+        "pinCode": {
+          "type": "string",
+          "description": "6-digit Indian Postal PIN code",
+          "minLength": 6,
+          "maxLength": 6,
+          "pattern": "^[1-9][0-9]{5}$"
+        },
+        "gpsLat": {
+          "type": "number",
+          "description": "Order snapshot GPS latitude coordinate (-90 to 90)"
+        },
+        "gpsLng": {
+          "type": "number",
+          "description": "Order snapshot GPS longitude coordinate (-180 to 180)"
+        },
+        "gpsAddress": {
+          "type": "string",
+          "description": "Order snapshot reverse-geocoded GPS address",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "Selected payment mode",
+          "enum": ["COD", "UPI"],
+          "minLength": 3,
+          "maxLength": 10
+        },
+        "status": {
+          "type": "string",
+          "description": "Current order lifecycle state",
+          "enum": ["pending", "confirmed", "shipped", "delivered", "cancelled"],
+          "minLength": 7,
+          "maxLength": 15
+        },
+        "adminNoteHi": {
+          "type": "string",
+          "description": "Live delivery/order note updated by Admin and visible to the customer",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "isDeleted": {
+          "type": "boolean",
+          "description": "Whether the order is soft-deleted into the Admin Backup/Recovery bin"
+        },
+        "deletedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the order was moved to backup"
+        },
+        "whatsappNotificationStatus": {
+          "type": "string",
+          "description": "Server-side Meta WhatsApp Business Cloud API notification status",
+          "enum": ["pending", "sending", "sent", "failed", "not_configured"]
+        },
+        "whatsappNotificationError": {
+          "type": "string",
+          "description": "Exact error or configuration status message from Meta WhatsApp Cloud API",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "whatsappMessageId": {
+          "type": "string",
+          "description": "Meta WhatsApp Cloud API message ID (wamid) returned only when genuinely sent",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "whatsappNotifiedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when WhatsApp notification attempt completed"
+        },
+        "customerWhatsappStatus": {
+          "type": "string",
+          "description": "Server-side Meta WhatsApp Business Cloud API notification status for Customer Order Confirmation & Status Updates",
+          "enum": ["pending", "sending", "sent", "failed", "not_configured"]
+        },
+        "customerWhatsappError": {
+          "type": "string",
+          "description": "Exact error or configuration status message for Customer WhatsApp notification",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "customerWhatsappMessageId": {
+          "type": "string",
+          "description": "Meta WhatsApp Cloud API message ID (wamid) for Customer notification",
+          "minLength": 0,
+          "maxLength": 150
+        },
+        "customerWhatsappLastEvent": {
+          "type": "string",
+          "description": "Last Customer WhatsApp event triggered (order_placed, confirmed, delivered, cancelled, shipped)",
+          "minLength": 0,
+          "maxLength": 60
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when order was placed"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when order was last updated"
+        }
+      },
+      "required": ["customerId", "customerName", "customerEmail", "itemsSummary", "totalItemsCount", "totalAmountInr", "deliveryAddress", "pinCode", "paymentMethod", "status", "createdAt", "updatedAt"]
+    },
+    "AppSettings": {
+      "title": "AppSettings",
+      "description": "Admin-controlled global application settings for branding, company info, texts, banners, delivery rules, and help content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "appNameHi": { "type": "string", "maxLength": 100 },
+        "appNameEn": { "type": "string", "maxLength": 100 },
+        "companyNameHi": { "type": "string", "maxLength": 120 },
+        "companyNameEn": { "type": "string", "maxLength": 120 },
+        "taglineHi": { "type": "string", "maxLength": 200 },
+        "taglineEn": { "type": "string", "maxLength": 200 },
+        "logoUrl": { "type": "string", "maxLength": 400000 },
+        "bannerImageUrl": { "type": "string", "maxLength": 400000 },
+        "primaryColor": { "type": "string", "maxLength": 20 },
+        "companyAddressHi": { "type": "string", "maxLength": 300 },
+        "companyAddressEn": { "type": "string", "maxLength": 300 },
+        "contactPhone": { "type": "string", "maxLength": 30 },
+        "contactEmail": { "type": "string", "maxLength": 120 },
+        "whatsappNumber": { "type": "string", "maxLength": 30 },
+        "bannerTitleHi": { "type": "string", "maxLength": 200 },
+        "bannerTitleEn": { "type": "string", "maxLength": 200 },
+        "bannerSubtitleHi": { "type": "string", "maxLength": 400 },
+        "bannerSubtitleEn": { "type": "string", "maxLength": 400 },
+        "offerBannerHi": { "type": "string", "maxLength": 300 },
+        "offerBannerEn": { "type": "string", "maxLength": 300 },
+        "announcementHi": { "type": "string", "maxLength": 300 },
+        "announcementEn": { "type": "string", "maxLength": 300 },
+        "catalogTitleHi": { "type": "string", "maxLength": 150 },
+        "catalogTitleEn": { "type": "string", "maxLength": 150 },
+        "catalogSubtitleHi": { "type": "string", "maxLength": 300 },
+        "catalogSubtitleEn": { "type": "string", "maxLength": 300 },
+        "addToCartBtnHi": { "type": "string", "maxLength": 60 },
+        "addToCartBtnEn": { "type": "string", "maxLength": 60 },
+        "orderNowBtnHi": { "type": "string", "maxLength": 60 },
+        "orderNowBtnEn": { "type": "string", "maxLength": 60 },
+        "emptyCatalogMsgHi": { "type": "string", "maxLength": 300 },
+        "emptyCatalogMsgEn": { "type": "string", "maxLength": 300 },
+        "deliveryChargeInr": { "type": "number" },
+        "freeDeliveryMinInr": { "type": "number" },
+        "minOrderAmountInr": { "type": "number" },
+        "deliveryAreasHi": { "type": "string", "maxLength": 400 },
+        "deliveryAreasEn": { "type": "string", "maxLength": 400 },
+        "allowCod": { "type": "boolean" },
+        "allowUpi": { "type": "boolean" },
+        "upiId": { "type": "string", "maxLength": 100 },
+        "storeOpen": { "type": "boolean" },
+        "storeClosedMsgHi": { "type": "string", "maxLength": 300 },
+        "storeClosedMsgEn": { "type": "string", "maxLength": 300 },
+        "helpTitleHi": { "type": "string", "maxLength": 150 },
+        "helpTitleEn": { "type": "string", "maxLength": 150 },
+        "helpContentHi": { "type": "string", "maxLength": 1000 },
+        "helpContentEn": { "type": "string", "maxLength": 1000 },
+        "supportHoursHi": { "type": "string", "maxLength": 150 },
+        "supportHoursEn": { "type": "string", "maxLength": 150 },
+        "orderSuccessMsgHi": { "type": "string", "maxLength": 300 },
+        "orderSuccessMsgEn": { "type": "string", "maxLength": 300 },
+        "footerTextHi": { "type": "string", "maxLength": 200 },
+        "footerTextEn": { "type": "string", "maxLength": 200 },
+        "customWeightsCsv": { "type": "string", "maxLength": 100 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "appNameHi", "appNameEn", "companyNameHi", "companyNameEn", "primaryColor", "deliveryChargeInr", "freeDeliveryMinInr", "minOrderAmountInr", "allowCod", "allowUpi", "storeOpen", "createdAt", "updatedAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted admin registry document indexed by admin UID",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Admin Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified admin email",
+          "minLength": 5,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/CustomerProfile" },
+      "description": "Customer profile documents strictly isolated to the owning customer or admin. Never stores passwords."
+    },
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/TeaProduct" },
+      "description": "Tea product catalogue readable by authenticated users and manageable only by admins."
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/TeaOrder" },
+      "description": "Customer tea orders. Customers can create orders for themselves and read/list ONLY their own orders. Admins can read and update order statuses."
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/AppSettings" },
+      "description": "Global application settings controlled strictly by Admin and readable across all devices."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Separate admin access registry."
+    }
+  }
+}
